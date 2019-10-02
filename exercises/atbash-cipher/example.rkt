@@ -4,31 +4,31 @@
           [encode (string? . -> . string?)]
           [decode (string? . -> . string?)]))
 
-(define (prepare-string m)
-  (filter (λ(s)
-            (or (char-numeric? s)
-                (char-alphabetic? s)))
-          (string->list
-           (string-downcase m))))
+;; Private
+(define (prepare-string text)
+  (filter (λ (s) (or (char-numeric? s) (char-alphabetic? s)))
+          (string->list (string-downcase text))))
 
-(define (atbash-char c)
-  (if (char-numeric? c)
-      c
-      (integer->char
-       (+ (char->integer #\a)
-          (- (char->integer #\z) (char->integer c))))))
+(define atbash-char
+  (let* ((a+ (curry + (char->integer #\a)))
+         (z- (curry - (char->integer #\z)))
+         (encipher (compose integer->char a+ z- char->integer)))
+    (λ (char)
+      (if (char-numeric? char) char (encipher char)))))
 
-(define (group v chunk-size)
-  (let loop ([v v]
-             [N (length v)]
-             [answer '()])
-    (if (<= N chunk-size)
-        (string-join (reverse (cons (list->string v) answer)))
-        (let-values ([(h t) (split-at v chunk-size)])
-          (loop t (- N chunk-size) (cons (list->string h) answer))))))
+(define (windows size lst [acc '()])
+  (if (>= (length lst) size)
+      (let ((window (take lst size)))
+        (windows size (drop lst size) (cons window acc)))
+      (if (null? lst)
+          (reverse acc)
+          (reverse (cons lst acc)))))
 
-(define (encode m)
-  (group (map atbash-char (prepare-string m)) 5))
+(define translate (compose (curry map atbash-char) prepare-string))
 
-(define (decode m)
-  (list->string (map atbash-char (prepare-string m))))
+;; Public
+(define encode
+  (let ((group (compose (curry map list->string) (curry windows 5))))
+    (compose string-join group translate)))
+
+(define decode (compose list->string translate ))
